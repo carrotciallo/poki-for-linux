@@ -84,6 +84,8 @@ Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
 | `take_screenshot` (lossless device capture) | works |
 | `tap` (open and close an app sidebar, verified by tree changes) | works |
 | Approval dialog via `zenity` (dialog timeout leaves the action unapproved) | works |
+| Wireless control over the LAN (RemotePairing to the iPhone's LAN address; live TCP tunnel, tree and screenshot over Wi-Fi) | works |
+| `type_text`, `swipe`, `press_key` on the real device | works |
 | `npm test` | every test file passes on its own; see the note below |
 
 Test-suite note: the full suite also needs the agent dependencies

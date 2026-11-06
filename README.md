@@ -5,6 +5,10 @@
 <h1 align="center">Poki for Linux</h1>
 
 <p align="center">
+  English | <a href="README.zh-CN.md">简体中文</a> | <a href="README.zh-TW.md">繁體中文</a> | <a href="README.ja.md">日本語</a> | <a href="README.ko.md">한국어</a> | <a href="README.es.md">Español</a>
+</p>
+
+<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue" alt="License: AGPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20iOS-lightgrey" alt="Platform: Linux and iOS">
 </p>
@@ -103,7 +107,10 @@ Telegram works.
 **Wireless.** Remote use over Tailscale (RemotePairing) is built into
 the bridge and is platform-independent; the setup steps in
 [remote-iphone.md](docs/remote-iphone.md) apply, with this repository's
-state directory. It is not yet verified on a Linux host.
+state directory. The Tailscale route itself is not yet verified on a
+Linux host — but the same RemotePairing mechanism has been verified
+here over the local network, using the iPhone's LAN address in place
+of a Tailscale one, after which the cable is no longer needed at home.
 
 ## Verified on real hardware
 
@@ -119,6 +126,7 @@ pymobiledevice3 11.50. Device: iPhone18,4 running iOS 27.0.1 over USB.
 | `tap`, `swipe`, `press_key` | works |
 | `type_text` (verified text input, clipboard restored afterwards) | works |
 | Approval dialog via `zenity` | works |
+| Wireless control over the LAN (RemotePairing to the LAN IP) | works |
 | `npm test` | every test file passes on its own; see the note in [LINUX.md](LINUX.md) |
 
 ## Known limitations
