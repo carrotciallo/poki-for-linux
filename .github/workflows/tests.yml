@@ -34,10 +34,21 @@ jobs:
         run: npm ci --prefix agent
 
       # The suite is specified per file: each test file runs in its own
-      # process, matching how the port is verified locally.
+      # process, matching how the port is verified locally. A failure is
+      # also surfaced as a workflow annotation naming the file and the
+      # failing tests, so the result is readable without the raw log.
       - name: Run each test file on its own
         run: |
           for file in test/*.test.mjs; do
             echo "=== $file"
-            node --test "$file"
+            log="/tmp/$(basename "$file").log"
+            if ! node --test "$file" >"$log" 2>&1; then
+              cat "$log"
+              echo "::error title=Failing test file::$file"
+              grep -E '^✖ ' "$log" | head -10 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g' -e 's/:/%3A/g' -e 's/,/%2C/g' | while IFS= read -r line; do
+                echo "::error title=Failing test::$line"
+              done
+              exit 1
+            fi
+            grep -E '^ℹ (tests|pass|fail)' "$log"
           done
