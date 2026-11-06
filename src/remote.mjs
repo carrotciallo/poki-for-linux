@@ -63,6 +63,16 @@ async function socketFor(target) {
   return connect(path);
 }
 
+// The first request to a remote device otherwise pays for starting the
+// helper and establishing its device session inline, inside that tool
+// call, where it can outlast the client's own request timeout and make
+// the call look hung. Warming at daemon start moves the cost off the
+// first call. A failure only means the device is unreachable right now;
+// the first real call then pays the same cost it always did.
+export async function warmRemote(target) {
+  await remoteRequest(target, { op: 'device_info' });
+}
+
 export async function remoteRequest(target, request) {
   checkWork();
   const callerSignal = signal();

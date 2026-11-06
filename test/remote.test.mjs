@@ -58,3 +58,37 @@ server.listen(process.argv[4], () => console.log(JSON.stringify({ready:true})));
   const closed = await secondClient.callTool({ name: 'disconnect_device', arguments: args });
   assert.ok(!closed.isError, JSON.stringify(closed));
 });
+
+
+test('the daemon warms remote helpers at startup so the first device call does not pay for session setup', async t => {
+  const f = await fixture(t, { beforeStart: async dir => {
+    await mkdir(join(dir, 'state'));
+    await writeFile(join(dir, 'state/remote-devices.json'), JSON.stringify([{ id: 'remote-phone', config_path: join(dir, 'remote.json') }]));
+    await writeFile(join(dir, 'build/poki-native'), `#!/usr/bin/env node
+import { createInterface } from 'node:readline';
+import { createServer } from 'node:net';
+import { appendFileSync, writeFileSync } from 'node:fs';
+if (process.argv[2] !== '--remote-server') process.exit(1);
+appendFileSync(process.env.FIXTURE_LOG, JSON.stringify({helper:'started'})+'\\n');
+writeFileSync(process.env.FIXTURE_STATE + '.pid', String(process.pid));
+const server = createServer(socket => {
+  socket.write(JSON.stringify({pid:process.pid})+'\\n');
+  createInterface({input:socket}).once('line', line => {
+    const request = JSON.parse(line);
+    appendFileSync(process.env.FIXTURE_LOG, JSON.stringify({op:request.op})+'\\n');
+    socket.end(JSON.stringify(request.op === 'device_info' ? {scale:1,properties:{}} : {isError:true,error:'Unsupported fixture request'})+'\\n');
+  });
+});
+server.listen(process.argv[4], () => console.log(JSON.stringify({ready:true})));
+`, { mode: 0o755 });
+  }});
+  t.after(async () => {
+    const pid = Number(await readFile(join(f.dir, 'fixture.json.pid'), 'utf8').catch(() => ''));
+    if (pid > 1) { try { process.kill(pid, 'SIGTERM'); } catch {} }
+  });
+  // No tool call has been made: startup alone must have started the
+  // helper and opened its device session with a device_info request.
+  await f.until(log => log.includes('"helper":"started"'));
+  await f.until(log => log.includes('"op":"device_info"'));
+  assert.ok((await f.events()).some(e => e.helper === 'started'));
+});

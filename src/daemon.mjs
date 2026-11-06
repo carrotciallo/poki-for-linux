@@ -9,6 +9,7 @@ import { Devices } from './device.mjs';
 import { stateDir, endpointFile } from './config.mjs';
 import { startUpdateChecks } from './update-check.mjs';
 import { warnIfNativeStale } from './build-info.mjs';
+import { remoteDevices, warmRemote } from './remote.mjs';
 
 const portIndex = process.argv.indexOf('--port');
 const port = portIndex < 0 ? 47825 : Number(process.argv[portIndex + 1]);
@@ -78,6 +79,11 @@ await chmod(endpointFile, 0o600);
 console.log(JSON.stringify({ event: 'ready', url: entry.url, endpointFile, tools: definitions.length }));
 
 const stopUpdateChecks = startUpdateChecks();
+
+// Start the RemotePairing helpers now, not inside the first tool call
+// that needs one: their session setup can take longer than a client's
+// request timeout. Unreachable devices are retried by that first call.
+for (const target of await remoteDevices().catch(() => [])) warmRemote(target).catch(() => {});
 
 let stopping = false;
 async function stop() {
