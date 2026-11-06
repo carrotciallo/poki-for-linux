@@ -104,6 +104,7 @@ Physical iPhone support has been verified only on iPhones using the Chinese inte
 | Topic | Read |
 | --- | --- |
 | Installation, other MCP clients, and troubleshooting | [Install guide](docs/install.md) |
+| Linux host support (this fork) | [Linux port](LINUX.md) |
 | Poki Agent, models, iMessage, and Telegram | [Run Poki Agent](agent/README.md) |
 | MCP tool reference | [Tool behavior](docs/tools.md) |
 | Environment variables and sessions | [Configuration](docs/configuration.md) |
