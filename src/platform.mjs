@@ -5,7 +5,7 @@ import { execute, pause, checkWork, signal, deadline, stopped, stoppingReason, p
 import { access, chmod, copyFile, cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { basename, extname, isAbsolute, join, resolve } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { idevice, stateDir, root } from './config.mjs';
@@ -21,6 +21,44 @@ function state(ctx) {
 }
 
 export function platformRun(file, args, options) { return execute(file, args, options); }
+
+const isLinux = platform() === 'linux';
+
+// plutil and ditto are macOS-only host tools. On Linux, libplist's
+// plistutil and zip/unzip do the same jobs; plistutil also reads the
+// binary plists that real apps ship.
+async function plistJson(input) {
+  const { stdout } = isLinux
+    ? await platformRun('plistutil', ['-i', '-', '-o', '-', '-f', 'json'], { input })
+    : await platformRun('plutil', ['-convert', 'json', '-o', '-', '-'], { input });
+  return JSON.parse(stdout);
+}
+
+async function plistString(file, key) {
+  if (!isLinux) return (await platformRun('plutil', ['-extract', key, 'raw', '-o', '-', file])).stdout.trim();
+  const { stdout } = await platformRun('plistutil', ['-i', file, '-o', '-', '-f', 'json']);
+  const value = JSON.parse(stdout)[key];
+  if (typeof value !== 'string' || !value) throw new Error(`${file} has no string value for ${key}.`);
+  return value;
+}
+
+async function plistXml(value) {
+  const input = JSON.stringify(value);
+  const { stdout } = isLinux
+    ? await platformRun('plistutil', ['-i', '-', '-o', '-', '-f', 'xml'], { input })
+    : await platformRun('plutil', ['-convert', 'xml1', '-o', '-', '-'], { input });
+  return stdout;
+}
+
+async function extractZip(archive, directory) {
+  if (isLinux) await platformRun('unzip', ['-q', archive, '-d', directory]);
+  else await platformRun('ditto', ['-x', '-k', archive, directory]);
+}
+
+async function createZip(directory, entry, archive) {
+  if (isLinux) await platformRun('zip', ['-qry', archive, entry], { cwd: directory });
+  else await platformRun('ditto', ['-c', '-k', '--keepParent', join(directory, entry), archive]);
+}
 
 const simctl = async args => (await platformRun('xcrun', ['simctl', ...args])).stdout.trim();
 const physical = async (id, args, expect) => {
@@ -147,8 +185,7 @@ async function startSimulator(ctx, args) {
 async function apps(target, includeSystem = false) {
   if (target.kind === 'simulator') {
     const plist = await simctl(['listapps', target.id]);
-    const { stdout } = await platformRun('plutil', ['-convert', 'json', '-o', '-', '-'], { input: plist });
-    return Object.entries(JSON.parse(stdout)).map(([id, app]) => ({
+    return Object.entries(await plistJson(plist)).map(([id, app]) => ({
       bundle_id: id, name: app.CFBundleDisplayName ?? app.CFBundleName ?? id,
       system: app.ApplicationType === 'System', version: app.CFBundleShortVersionString,
       path: app.Path, executable: app.CFBundleExecutable,
@@ -336,14 +373,13 @@ async function install(target, value) {
     if (extname(path).toLowerCase() === '.ipa') {
       if (target.kind === 'simulator') throw new Error('A simulator requires a simulator-built .app, not an .ipa.');
       temporary = await newDirectory(join(stateDir, 'install'), 'ipa-');
-      await platformRun('ditto', ['-x', '-k', path, temporary]);
+      await extractZip(path, temporary);
       const bundles = (await readdir(join(temporary, 'Payload'))).filter(f => f.endsWith('.app'));
       if (bundles.length !== 1) throw new Error('The .ipa must contain exactly one Payload/*.app.');
       source = join(temporary, 'Payload', bundles[0]);
     }
     if (extname(source).toLowerCase() !== '.app' || !(await stat(source)).isDirectory()) throw new Error('Install expects an .app directory or .ipa archive.');
-    const { stdout } = await platformRun('plutil', ['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', join(source, 'Info.plist')]);
-    const bundle = stdout.trim();
+    const bundle = await plistString(join(source, 'Info.plist'), 'CFBundleIdentifier');
     if (target.kind === 'simulator') await simctl(['install', target.id, source]);
     else {
       let archive = path;
@@ -353,7 +389,7 @@ async function install(target, value) {
         await mkdir(payload);
         await cp(source, join(payload, basename(source)), { recursive: true, verbatimSymlinks: true });
         archive = join(temporary, 'package.ipa');
-        await platformRun('ditto', ['-c', '-k', '--keepParent', payload, archive]);
+        await createZip(temporary, 'Payload', archive);
       }
       return await applicationMutation(target, { op: 'install_app', ipa_path: archive, bundle_id: bundle }, async () => {
         const app = (await apps(target, true)).find(app => app.bundle_id === bundle);
@@ -621,8 +657,7 @@ async function downloadContainer(target, args) {
     await cp(source, data, { recursive: true, errorOnExist: true, force: false, dereference: false });
   } else await devicectl(target.id, ['device', 'copy', 'from', '--domain-type', 'appDataContainer', '--domain-identifier', app.bundle_id, '--source', '.', '--destination', data], 180000);
   const plist = { ApplicationBundleIdentifier: app.bundle_id, ApplicationName: app.name, ContainerType: 'AppData' };
-  const converted = await platformRun('plutil', ['-convert', 'xml1', '-o', '-', '-'], { input: JSON.stringify(plist) });
-  await writeFile(join(packagePath, 'AppDataInfo.plist'), converted.stdout, { mode: 0o600, flag: 'wx' });
+  await writeFile(join(packagePath, 'AppDataInfo.plist'), await plistXml(plist), { mode: 0o600, flag: 'wx' });
   return { bundle_id: app.bundle_id, path: packagePath };
 }
 

@@ -29,7 +29,7 @@ export async function deadline(milliseconds, fn) {
 
 // Keep the request alive until the owned child actually closes, including after
 // an abort. Releasing a device must not hand it over while that child still runs.
-export function execute(file, args, { timeout = 45000, input, env, maxBuffer = 32 * 1024 * 1024 } = {}) {
+export function execute(file, args, { timeout = 45000, input, env, cwd, maxBuffer = 32 * 1024 * 1024 } = {}) {
   checkWork();
   const callerSignal = signal();
   return phase('external_process', () => new Promise((resolve, reject) => {
@@ -37,7 +37,7 @@ export function execute(file, args, { timeout = 45000, input, env, maxBuffer = 3
     const timeoutController = new AbortController();
     const timer = setTimeout(() => timeoutController.abort(new DOMException('External process deadline exceeded', 'TimeoutError')), timeout);
     const requestSignal = callerSignal ? AbortSignal.any([callerSignal, timeoutController.signal]) : timeoutController.signal;
-    const child = execFile(file, args, { detached: true, env: env ?? process.env, maxBuffer, encoding: 'utf8', signal: requestSignal }, (error, stdout, stderr) => {
+    const child = execFile(file, args, { detached: true, env: env ?? process.env, cwd, maxBuffer, encoding: 'utf8', signal: requestSignal }, (error, stdout, stderr) => {
       outcome = error ? { error: requestSignal?.aborted ? requestSignal.reason : Object.assign(new Error(`Command did not complete: ${(stderr || stdout || error.message).trim().slice(-4000)}. An input may already have been delivered; inspect before retrying.`), { stdout, stderr }) } : { stdout, stderr };
     });
     const killOwnedGroup = signal => { if (child.pid) { try { process.kill(-child.pid, signal); } catch (error) { if (error.code !== 'ESRCH') child.kill(signal); } } };

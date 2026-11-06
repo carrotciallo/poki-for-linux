@@ -78,7 +78,7 @@ else if(tool==='poki-native') {
  }
 } else if(tool==='ffmpeg') {writeFileSync(args.at(-1),'movie');process.stdin.on('data',()=>log({encoded:true}));process.stdin.on('end',()=>process.exit());}
 else if(tool==='ffprobe') console.log(JSON.stringify({streams:[{codec_name:'h264'}],format:{duration:'1'}}));
-else if(tool==='osascript') {log({dialog:true});setInterval(()=>{},10000);}
+else if(tool==='osascript'||tool==='zenity') {log({dialog:true});setInterval(()=>{},10000);}
 else throw Error('Unexpected fixture command '+tool);
 `;
 export const value = result => JSON.parse(result.content.find(c => c.type === 'text').text);
@@ -90,7 +90,7 @@ export async function fixture(t, { approvalMode = 'ask', staleNative = false, to
  await mkdir(join(dir,'build'));await mkdir(join(dir,'bin'));await mkdir(join(dir,'native'));
  const image=join(dir,'image.png');await sharp({create:{width:100,height:200,channels:3,background:'white'}}).png().toFile(image);
  const state=join(dir,'fixture.json'),log=join(dir,'commands.jsonl');await writeFile(state,'{}');await writeFile(log,'');
- for(const tool of ['python3','xcrun','idevice','ffmpeg','ffprobe','osascript'])await writeFile(join(dir,'bin',tool),fixtureProgram,{mode:0o755});
+ for(const tool of ['python3','xcrun','idevice','ffmpeg','ffprobe','osascript','zenity'])await writeFile(join(dir,'bin',tool),fixtureProgram,{mode:0o755});
  for(const tool of ['poki-native','ocr','simulator'])await writeFile(join(dir,'build',tool),fixtureProgram,{mode:0o755});
  if(staleNative){await mkdir(join(dir,'native/bridge/src'),{recursive:true});await writeFile(join(dir,'native/bridge/src/main.rs'),'fn main() {}');await utimes(join(dir,'build/poki-native'),1,1);}
  const env={...process.env,POKI_NO_UPDATE_CHECK:'1',POKI_MCP_TOOLS:toolsProfile,POKI_MCP_APPROVAL_MODE:approvalMode,HOME:dir,PATH:join(dir,'bin')+':'+process.env.PATH,POKI_MCP_STATE_DIR:join(dir,'state'),IDEVICE_TOOLS:join(dir,'bin/idevice'),FIXTURE_STATE:state,FIXTURE_LOG:log,FIXTURE_IMAGE:image};

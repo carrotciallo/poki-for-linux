@@ -91,11 +91,11 @@ Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
 
 Test-suite note: the full suite also needs the agent dependencies
 (`npm ci --prefix agent`), which the update tests exercise through the
-CLI. In a single full `npm test` run on the reference host, 9
-timing-sensitive tests in `test/protocol.test.mjs` (app management and
-the approval dialog) failed while daemon fixtures from the earlier
-files were still winding down; the same file passes 16/16 when run on
-its own. The other files passed inside the full run as well.
+CLI. Every test file passes on the reference host (133 tests in
+total). An earlier revision of this note blamed 9 failing
+coordination tests on timing; they were in fact two porting gaps —
+the app-management paths called the macOS-only `plutil` and `ditto`,
+and the test fixture did not stub `zenity` — both fixed since.
 
 ## Known limitations
 
@@ -121,7 +121,8 @@ its own. The other files passed inside the full run as well.
 ## Changes from upstream
 
 - `bin/setup`: Linux prerequisite flow (no Xcode requirement; requires
-  usbmuxd and tesseract), prerequisite hints worded per platform, shared idevice/Node
+  usbmuxd, tesseract, and libplist's `plistutil` plus zip/unzip),
+  prerequisite hints worded per platform, shared idevice/Node
   steps, script-free npm install plus the sharp verification above;
   the setup test in `test/protocol.test.mjs` asserts each platform's
   own expectations
@@ -138,6 +139,12 @@ its own. The other files passed inside the full run as well.
 - `src/config.mjs`: default state directory follows the XDG state
   convention on Linux (macOS path unchanged)
 - `src/human.mjs`: approval dialogs fall back to `zenity` on Linux
+- `src/platform.mjs` and `src/work.mjs`: app-package and property-list
+  work uses `plistutil` and zip/unzip on Linux in place of the
+  macOS-only `plutil` and `ditto` (the macOS tools are unchanged);
+  `execute()` passes a working directory through for the zip call
+- `test/fixture.mjs`: the fixture stubs `zenity` alongside `osascript`,
+  so the approval-dialog flow is exercised on the Linux branch too
 
 Everything else is unmodified upstream code. Issues that reproduce on
 macOS belong upstream; Linux-specific issues belong here.
