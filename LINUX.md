@@ -79,11 +79,20 @@ Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
 | Check | Result |
 | --- | --- |
 | Pairing and lockdown over usbmuxd | works |
-| DeveloperDiskImage via pymobiledevice3 (`MobileAsset.DDI 27.1.5228.8`) | installed |
+| DeveloperDiskImage via pymobiledevice3 (`MobileAsset.DDI 27.1.5228.8`) | installed, including a reinstall through `bin/prepare-device.mjs` after an uninstall |
 | `list_elements` (accessibility tree, 420×912 pt) | works |
 | `take_screenshot` (lossless device capture) | works |
 | `tap` (open and close an app sidebar, verified by tree changes) | works |
-| `npm test` | see the release notes of this fork |
+| Approval dialog via `zenity` (dialog timeout leaves the action unapproved) | works |
+| `npm test` | every test file passes on its own; see the note below |
+
+Test-suite note: the full suite also needs the agent dependencies
+(`npm ci --prefix agent`), which the update tests exercise through the
+CLI. In a single full `npm test` run on the reference host, 9
+timing-sensitive tests in `test/protocol.test.mjs` (app management and
+the approval dialog) failed while daemon fixtures from the earlier
+files were still winding down; the same file passes 16/16 when run on
+its own. The other files passed inside the full run as well.
 
 ## Known limitations
 
@@ -109,8 +118,10 @@ Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
 ## Changes from upstream
 
 - `bin/setup`: Linux prerequisite flow (no Xcode requirement; requires
-  usbmuxd), shared idevice/Node steps, script-free npm install plus the
-  sharp verification above
+  usbmuxd), prerequisite hints worded per platform, shared idevice/Node
+  steps, script-free npm install plus the sharp verification above;
+  the setup test in `test/protocol.test.mjs` asserts each platform's
+  own expectations
 - `bin/build-native`: builds only the Rust bridge on Linux; the Swift
   OCR and Objective-C simulator helpers are macOS-only and skipped
 - `bin/prepare-device.mjs`: on Linux, installs the DeveloperDiskImage
