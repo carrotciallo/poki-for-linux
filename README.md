@@ -125,16 +125,20 @@ pymobiledevice3 11.50. Device: iPhone18,4 running iOS 27.0.1 over USB.
 | `take_screenshot` (lossless device capture) | works |
 | `tap`, `swipe`, `press_key` | works |
 | `type_text` (verified text input, clipboard restored afterwards) | works |
+| Screenshot prompt check (OCR via tesseract) | works |
 | Approval dialog via `zenity` | works |
 | Wireless control over the LAN (RemotePairing to the LAN IP) | works |
 | `npm test` | every test file passes on its own; see the note in [LINUX.md](LINUX.md) |
 
 ## Known limitations
 
-- The OCR helper is a macOS Vision binary, so on Linux the screenshot
-  prompt check reports `unavailable`; observation relies on the
-  accessibility tree (the same fallback upstream uses when the helper
-  is missing).
+- OCR runs on tesseract through a small Rust recognizer in the bridge
+  crate (installed as `build/ocr`), printing the same JSON contract
+  as the macOS Vision helper; the screenshot prompt check and the
+  accessibility-miss fallback work. Recognition quality is
+  tesseract's — clear UI text reads well, small or stylized text may
+  be missed. Languages default to Simplified Chinese, English and
+  Japanese (`POKI_OCR_LANGS`).
 - `get_clipboard` cannot classify clipboard image types on Linux.
 - A few physical-device tools shell out to `xcrun devicectl` upstream
   (`open_url`, `terminate_app`, crash-log access, app-container export)

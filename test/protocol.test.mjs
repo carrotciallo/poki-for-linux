@@ -283,10 +283,10 @@ test('bin/setup says what to install for a missing prerequisite', { timeout: 200
   // the distribution-agnostic wording bin/setup prints there.
   const linux = process.platform === 'linux';
   const present = linux
-    ? ['git', 'node', 'npm', 'cargo', 'rustc', 'python3', 'ffmpeg', 'ffprobe', 'usbmuxd']
+    ? ['git', 'node', 'npm', 'cargo', 'rustc', 'python3', 'ffmpeg', 'ffprobe', 'usbmuxd', 'tesseract']
     : ['git', 'node', 'npm', 'cargo', 'rustc', 'python3', 'xcrun', 'xcodebuild', 'ffmpeg', 'ffprobe'];
   const scenarios = linux
-    ? [['node', /Node\.js 24/], ['cargo', /rustup\.rs/], ['ffmpeg', /package manager/], ['python3', /Python 3/]]
+    ? [['node', /Node\.js 24/], ['cargo', /rustup\.rs/], ['ffmpeg', /package manager/], ['python3', /Python 3/], ['tesseract', /OCR recognizer/]]
     : [['xcodebuild', /full Xcode/], ['node', /Node\.js 24/], ['cargo', /rustup\.rs/], ['ffmpeg', /brew install ffmpeg/]];
   for (const [missing, install] of scenarios) {
     const bin = join(dir, missing);

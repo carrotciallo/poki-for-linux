@@ -86,6 +86,7 @@ Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
 | Approval dialog via `zenity` (dialog timeout leaves the action unapproved) | works |
 | Wireless control over the LAN (RemotePairing to the iPhone's LAN address; live TCP tunnel, tree and screenshot over Wi-Fi) | works |
 | `type_text`, `swipe`, `press_key` on the real device | works |
+| Screenshot prompt check through OCR (tesseract recognizer as `build/ocr`; reports `checked`, and flows that force an OCR read such as `hide_keyboard` work) | works |
 | `npm test` | every test file passes on its own; see the note below |
 
 Test-suite note: the full suite also needs the agent dependencies
@@ -98,10 +99,10 @@ its own. The other files passed inside the full run as well.
 
 ## Known limitations
 
-- The OCR helper is a macOS Vision binary, so on Linux the screenshot
-  prompt check reports `unavailable` and observation relies on the
-  accessibility tree (the same fallback upstream uses when the helper is
-  missing).
+- OCR recognition quality on Linux is tesseract's, not Vision's: clear
+  UI text reads well, small or stylized text may be missed, so the
+  accessibility tree stays the primary observation source (the same
+  ordering upstream uses).
 - `get_clipboard` cannot classify clipboard image types on Linux; that
   check uses the macOS simulator helper upstream.
 - A few physical-device tools shell out to `xcrun devicectl` upstream
@@ -120,12 +121,18 @@ its own. The other files passed inside the full run as well.
 ## Changes from upstream
 
 - `bin/setup`: Linux prerequisite flow (no Xcode requirement; requires
-  usbmuxd), prerequisite hints worded per platform, shared idevice/Node
+  usbmuxd and tesseract), prerequisite hints worded per platform, shared idevice/Node
   steps, script-free npm install plus the sharp verification above;
   the setup test in `test/protocol.test.mjs` asserts each platform's
   own expectations
-- `bin/build-native`: builds only the Rust bridge on Linux; the Swift
-  OCR and Objective-C simulator helpers are macOS-only and skipped
+- `bin/build-native`: builds the Rust bridge on Linux, including the
+  Rust OCR recognizer installed as `build/ocr`; the Swift OCR and
+  Objective-C simulator helpers are macOS-only and skipped
+- `native/bridge/src/bin/ocr.rs` (new): a tesseract-backed recognizer
+  printing the same JSON contract as `native/ocr.swift` — word rows
+  grouped into screen lines, narrow captures upscaled first;
+  `POKI_OCR_LANGS`, `POKI_OCR_PSM` and `POKI_OCR_UPSCALE` tune it
+  (defaults `chi_sim+eng+jpn`, `11`, `2`)
 - `bin/prepare-device.mjs`: on Linux, installs the DeveloperDiskImage
   through pymobiledevice3 instead of the Xcode `iOS_DDI` directory
 - `src/config.mjs`: default state directory follows the XDG state

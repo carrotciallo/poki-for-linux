@@ -94,7 +94,7 @@ node bin/call.mjs list_elements '{"device":"<device UUID>"}'
 
 ## 알려진 제한 사항
 
-- OCR 헬퍼는 macOS Vision 바이너리이므로, Linux에서는 스크린샷 프롬프트 검사가 `unavailable`을 반환하고 관찰은 접근성 트리에 의존합니다(업스트림에서 헬퍼가 없을 때의 폴백과 동일합니다).
+- OCR은 bridge 안의 작은 Rust 인식기가 tesseract를 사용해 담당하며(`build/ocr`로 설치됨), macOS Vision 헬퍼와 같은 JSON 형식을 출력합니다. 스크린샷 프롬프트 검사와 접근성으로 읽지 못했을 때의 폴백이 동작합니다. 인식 품질은 tesseract에 달려 있어, 또렷한 UI 텍스트는 잘 읽지만 작은 글자나 장식 글자는 놓칠 수 있습니다. 기본 언어는 중국어 간체, 영어, 일본어이며 `POKI_OCR_LANGS`로 조정할 수 있습니다.
 - `get_clipboard`는 Linux에서 클립보드 이미지의 종류를 분류할 수 없습니다.
 - 몇몇 실물 기기 도구는 업스트림에서 `xcrun devicectl`을 호출합니다(`open_url`, `terminate_app`, 크래시 로그 접근, 앱 컨테이너 내보내기). idevice-tools와 동등한 구현으로 포팅되기 전까지는 Linux에서 실패합니다.
 - 업스트림과 마찬가지로 실물 기기는 세로 방향만 지원합니다.

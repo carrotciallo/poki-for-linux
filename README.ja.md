@@ -94,7 +94,7 @@ node bin/call.mjs list_elements '{"device":"<device UUID>"}'
 
 ## 既知の制限
 
-- OCR ヘルパーは macOS Vision のバイナリであるため、Linux ではスクリーンショットのプロンプトチェックが `unavailable` を返し、観察はアクセシビリティツリーに依存します（上流でヘルパーが欠けている場合のフォールバックと同じです）。
+- OCR は bridge 内の小さな Rust 製認識器が tesseract を使って担い（`build/ocr` としてインストール）、macOS Vision ヘルパーと同じ JSON 形式を出力します。スクリーンショットのプロンプトチェックと、アクセシビリティで読めなかった場合のフォールバックが動作します。認識品質は tesseract 次第で、明瞭な UI テキストはよく読めますが、小さな文字や装飾文字は漏れることがあります。デフォルトの言語は簡体字中国語・英語・日本語で、`POKI_OCR_LANGS` で変更できます。
 - `get_clipboard` は Linux ではクリップボード画像の種別を判別できません。
 - 一部の実機ツールは上流で `xcrun devicectl` を呼び出しており（`open_url`、`terminate_app`、クラッシュログへのアクセス、アプリコンテナのエクスポート）、idevice-tools の等価実装へ移植されるまでは Linux で失敗します。
 - 上流と同様、実機は縦向きのみ対応です。

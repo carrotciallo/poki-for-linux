@@ -94,7 +94,7 @@ node bin/call.mjs list_elements '{"device":"<device UUID>"}'
 
 ## 已知限制
 
-- OCR 辅助程序是 macOS Vision 二进制，因此在 Linux 上截图提示检查会报告 `unavailable`，观察依靠无障碍树（这与上游在缺失该辅助程序时的回退方式相同）。
+- OCR 由 tesseract 通过 bridge 中的一个小型 Rust 识别器承担（安装为 `build/ocr`），输出与 macOS Vision 辅助程序相同的 JSON 契约；截图提示检查与无障碍缺失时的回退都可工作。识别质量取决于 tesseract：清晰的界面文字读得准，小字或艺术字可能漏读。默认语言为简体中文、英文与日文，可用 `POKI_OCR_LANGS` 调整。
 - `get_clipboard` 在 Linux 上无法对剪贴板图片分类。
 - 少数物理设备工具在上游是调用 `xcrun devicectl` 的（`open_url`、`terminate_app`、崩溃日志访问、应用容器导出），在移植到 idevice-tools 等价实现之前，它们在 Linux 上会失败。
 - 与上游相同，物理设备仅支持竖屏方向。
