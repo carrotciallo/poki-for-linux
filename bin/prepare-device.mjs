@@ -14,6 +14,13 @@ const call = async args => execute(idevice, ['--udid', selected, ...args], { tim
 const services = async () => (await call(['remotexpc'])).stdout;
 if ((await services()).includes('com.apple.coredevice.displayservice')) {
   console.log('Device display service is already available.');
+} else if (process.platform === 'linux') {
+  const pmd3 = process.env.POKI_PYMOBILEDEVICE3 ?? 'pymobiledevice3';
+  console.log('Installing the developer disk image with pymobiledevice3; it downloads the image and personalizes it for this device…');
+  await execute(pmd3, ['cryptex', 'auto-install'], { timeout: 900000, maxBuffer: 8 * 1024 * 1024 })
+    .catch(error => { throw new Error(`pymobiledevice3 did not complete the installation (${error.message}). Install it with: pip install pymobiledevice3, or point POKI_PYMOBILEDEVICE3 at the binary. Run this command with one connected iPhone.`); });
+  if (!(await services()).includes('com.apple.coredevice.displayservice')) throw new Error('The image is installed, but displayservice is still unavailable. Check image compatibility and device Developer settings.');
+  console.log('Developer disk image installed; the device now exposes displayservice.');
 } else {
   const restore = '/Library/Developer/DeveloperDiskImages/iOS_DDI/Restore';
   await access(join(restore, 'BuildManifest.plist'))
