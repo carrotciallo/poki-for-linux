@@ -931,3 +931,40 @@ test('application names reuse a per-device directory across sessions and refresh
   assert.ok(!refreshed.isError,JSON.stringify(refreshed));assert.equal(refreshed._meta.app_lookup.cache_hit,false);
  }
 });
+
+
+test('terminate_app on a physical device kills only the app processes through DVT', async t => {
+ const f=await fixture(t,{approvalMode:'allow'});
+ const terminated=await f.call('terminate_app',{bundle_id:'local.fixture'});
+ assert.ok(!terminated.isError,JSON.stringify(terminated));
+ assert.equal(value(terminated).terminated,'local.fixture');
+ const kills=async()=>(await f.events()).filter(e=>e.tool==='pymobiledevice3'&&e.args.includes('kill'));
+ assert.deepEqual((await kills()).map(e=>e.args[3]),['4242']);
+ await f.set({processes:[{name:'FixtureWidget',pid:5151,bundleIdentifier:'local.fixture.widget'},{name:'Other',pid:99,bundleIdentifier:'local.other'}]});
+ const extended=await f.call('terminate_app',{bundle_id:'local.fixture'});
+ assert.equal(value(extended).terminated,'local.fixture');
+ assert.deepEqual((await kills()).map(e=>e.args[3]),['4242','5151']);
+ await f.set({processes:[{name:'Other',pid:99,bundleIdentifier:'local.other'}]});
+ const stopped=await f.call('terminate_app',{bundle_id:'local.fixture'});
+ assert.equal(value(stopped).already_stopped,true);
+ assert.equal((await kills()).length,2);
+});
+
+
+test('crash reports list and read back through the crash service on a physical device', async t => {
+ const f=await fixture(t,{approvalMode:'allow'});
+ await f.set({crashReports:['/Fixture-2026-01-01-120000.ips','/Retired','/Retired/Old-2025-12-31-235959.ips','/Notes.log']});
+ const listed=await f.call('list_crashes',{});
+ assert.ok(!listed.isError,JSON.stringify(listed));
+ assert.deepEqual(value(listed).reports.map(r=>r.path),['Retired/Old-2025-12-31-235959.ips','Fixture-2026-01-01-120000.ips']);
+ const all=value(await f.call('list_crashes',{kind:'all'}));
+ assert.deepEqual(all.reports.map(r=>r.name),['Old-2025-12-31-235959.ips','Notes.log','Fixture-2026-01-01-120000.ips']);
+ assert.equal(all.reports[1].kind,'log');
+ const crash=await f.call('get_crash',{path:'Fixture-2026-01-01-120000.ips'});
+ assert.ok(!crash.isError,JSON.stringify(crash));
+ assert.equal(value(crash).process,'Fixture');
+ assert.equal(value(crash).exception.type,'EXC_CRASH');
+ assert.equal(value(crash).frames[0].image,'Fixture');
+ const invalid=await f.call('get_crash',{path:'../Fixture-2026-01-01-120000.ips'});
+ assert.equal(invalid.isError,true);
+});

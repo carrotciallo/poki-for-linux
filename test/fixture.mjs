@@ -30,6 +30,13 @@ else if(tool==='idevice') {
  if(args.includes('screenshot')) {if(state.screenshotUnavailable){console.error('Screenshot service unavailable');process.exit(1);}copyFileSync(process.env.FIXTURE_IMAGE,args.at(-1));console.log('Screenshot saved to: fixture');}
  else if(args.includes('screencapture')) {if(state.failRecording)process.exit(1);if(!state.recordingBlock)process.stdout.write('frame');process.stdin.resume();setInterval(()=>{},10000);}
  else console.log(JSON.stringify(args.at(-1)==='ScreenScaleFactor'?1:args.at(-1)==='DeviceName'?'Fixture Phone':'fixture'));
+} else if(tool==='pymobiledevice3') {
+ if(args.includes('apps')&&args.includes('pull')){if(state.denyContainer){console.error('Container access denied by device');process.exit(1);}const destination=args[4];mkdirSync(destination+'/Documents',{recursive:true});writeFileSync(destination+'/Documents/check.txt','fixture container contents');}
+ else if(args.includes('crash')&&args.includes('ls')){for(const path of state.crashReports??['/Fixture-2026-01-01-120000.ips'])console.log(path);}
+ else if(args.includes('crash')&&args.includes('pull')){writeFileSync(args[2]+'/'+basename(args[3]),'{"app_name":"Fixture","timestamp":"2026-01-01"}\\n'+JSON.stringify({procName:'Fixture',bundleInfo:{CFBundleIdentifier:'local.fixture'},exception:{type:'EXC_CRASH',signal:'SIGABRT'},faultingThread:0,threads:[{triggered:true,frames:[{imageIndex:0,imageOffset:4096}]}],usedImages:[{name:'Fixture',base:8192,arch:'arm64'}]}));}
+ else if(args.includes('proclist'))console.log(JSON.stringify(state.processes??[{name:'Fixture',pid:4242,bundleIdentifier:'local.fixture'},{name:'Other',pid:99,bundleIdentifier:'local.other'}]));
+ else if(args.includes('kill')){if(state.killFails){console.error('Process control rejected the kill');process.exit(1);}}
+ else throw Error('Unexpected pymobiledevice3 request '+args.join(' '));
 } else if(tool==='ocr') {if(state.ocrUnavailable){console.error('Text recognition unavailable');process.exit(1);}if(state.ocrXs?.length>1)writeFileSync(process.env.FIXTURE_STATE,JSON.stringify({...state,ocrXs:state.ocrXs.slice(1)}));console.log(JSON.stringify([{text:state.appearsAfterReads?'Loading':state.ocrLabel??state.label??'First',x:state.ocrXs?.[0]??10,y:10,width:40,height:20}]));}
 else if(tool==='simulator') {
  const connectionKeyboard=state.keyboard;
@@ -90,7 +97,7 @@ export async function fixture(t, { approvalMode = 'ask', staleNative = false, to
  await mkdir(join(dir,'build'));await mkdir(join(dir,'bin'));await mkdir(join(dir,'native'));
  const image=join(dir,'image.png');await sharp({create:{width:100,height:200,channels:3,background:'white'}}).png().toFile(image);
  const state=join(dir,'fixture.json'),log=join(dir,'commands.jsonl');await writeFile(state,'{}');await writeFile(log,'');
- for(const tool of ['python3','xcrun','idevice','ffmpeg','ffprobe','osascript','zenity'])await writeFile(join(dir,'bin',tool),fixtureProgram,{mode:0o755});
+ for(const tool of ['python3','xcrun','idevice','ffmpeg','ffprobe','osascript','zenity','pymobiledevice3'])await writeFile(join(dir,'bin',tool),fixtureProgram,{mode:0o755});
  for(const tool of ['poki-native','ocr','simulator'])await writeFile(join(dir,'build',tool),fixtureProgram,{mode:0o755});
  if(staleNative){await mkdir(join(dir,'native/bridge/src'),{recursive:true});await writeFile(join(dir,'native/bridge/src/main.rs'),'fn main() {}');await utimes(join(dir,'build/poki-native'),1,1);}
  const env={...process.env,POKI_NO_UPDATE_CHECK:'1',POKI_MCP_TOOLS:toolsProfile,POKI_MCP_APPROVAL_MODE:approvalMode,HOME:dir,PATH:join(dir,'bin')+':'+process.env.PATH,POKI_MCP_STATE_DIR:join(dir,'state'),IDEVICE_TOOLS:join(dir,'bin/idevice'),FIXTURE_STATE:state,FIXTURE_LOG:log,FIXTURE_IMAGE:image};

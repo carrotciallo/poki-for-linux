@@ -81,6 +81,15 @@ async function devicectl(id, args, timeout = 60000) {
   return response.result;
 }
 
+// devicectl is macOS-only. Where pymobiledevice3 reaches the same device
+// service (AFC for crash reports and app containers, DVT for process
+// control), the Linux branches below use it instead. The binary follows
+// the POKI_PYMOBILEDEVICE3 convention from bin/prepare-device.mjs.
+const pymobiledevice3 = process.env.POKI_PYMOBILEDEVICE3 ?? 'pymobiledevice3';
+async function pmd3(args, timeout = 60000) {
+  return platformRun(pymobiledevice3, args, { timeout });
+}
+
 function absolutePath(value) {
   const expanded = value.startsWith('~/') ? join(homedir(), value.slice(2)) : value;
   if (!isAbsolute(expanded)) throw new Error('Path must be absolute (or start with ~/).');
@@ -579,6 +588,15 @@ async function listCrashes(target, args) {
     const directory = join(homedir(), 'Library/Logs/DiagnosticReports');
     const filenames = (await readdir(directory)).filter(name => /\.(ips|crash|spin|hang|diag|log|txt)$/.test(name));
     reports = await Promise.all(filenames.map(async name => ({ path: join(directory, name), name, modified: (await stat(join(directory, name))).mtime.toISOString() })));
+  } else if (isLinux) {
+    // pymobiledevice3 lists paths only, without the modification times
+    // and sizes devicectl reports; an entry that contains other entries
+    // is a directory. Ordering falls back to the report names, which
+    // embed their timestamps.
+    const { stdout } = await pmd3(['crash', 'ls', '--depth', '-1', '--udid', target.id]);
+    const paths = stdout.split('\n').map(line => line.trim()).filter(Boolean).map(path => path.replace(/^\//, ''));
+    reports = paths.filter(path => !paths.some(other => other.startsWith(`${path}/`)))
+      .map(path => ({ path, name: basename(path) }));
   } else {
     const result = await devicectl(target.id, ['device', 'info', 'files', '--domain-type', 'systemCrashLogs']);
     reports = (result.files ?? []).filter(item => !item.resources?.isDirectory).map(item => ({ path: item.relativePath, name: item.name, modified: item.metadata?.lastModDate, size: item.metadata?.size }));
@@ -610,7 +628,8 @@ async function getCrash(ctx, target, args) {
     await copyFile(source, local, constants.COPYFILE_EXCL);
   } else {
     if (reportPath.split('/').includes('..')) throw new Error('Invalid crash report path.');
-    await devicectl(target.id, ['device', 'copy', 'from', '--domain-type', 'systemCrashLogs', '--source', reportPath, '--destination', local]);
+    if (isLinux) await pmd3(['crash', 'pull', directory, reportPath, '--udid', target.id], 120000);
+    else await devicectl(target.id, ['device', 'copy', 'from', '--domain-type', 'systemCrashLogs', '--source', reportPath, '--destination', local]);
   }
   await chmod(local, 0o600);
   const raw = await readFile(local, 'utf8');
@@ -655,7 +674,8 @@ async function downloadContainer(target, args) {
   if (target.kind === 'simulator') {
     const source = await simctl(['get_app_container', target.id, app.bundle_id, 'data']);
     await cp(source, data, { recursive: true, errorOnExist: true, force: false, dereference: false });
-  } else await devicectl(target.id, ['device', 'copy', 'from', '--domain-type', 'appDataContainer', '--domain-identifier', app.bundle_id, '--source', '.', '--destination', data], 180000);
+  } else if (isLinux) await pmd3(['apps', 'pull', app.bundle_id, '/', data, '--udid', target.id], 180000);
+  else await devicectl(target.id, ['device', 'copy', 'from', '--domain-type', 'appDataContainer', '--domain-identifier', app.bundle_id, '--source', '.', '--destination', data], 180000);
   const plist = { ApplicationBundleIdentifier: app.bundle_id, ApplicationName: app.name, ContainerType: 'AppData' };
   await writeFile(join(packagePath, 'AppDataInfo.plist'), await plistXml(plist), { mode: 0o600, flag: 'wx' });
   return { bundle_id: app.bundle_id, path: packagePath };
@@ -746,6 +766,17 @@ export async function platformTool(ctx, name, args = {}) {
     case 'terminate_app': {
       const app = await resolveApp(target, args);
       if (target.kind === 'simulator') await simctl(['terminate', target.id, app.bundle_id]);
+      else if (isLinux) {
+        // DVT lists each process with its bundle identifier, which takes
+        // the place of the executable-path match below; the prefix rule
+        // covers the app's extensions, as the path match does.
+        const { stdout } = await pmd3(['developer', 'dvt', 'proclist', '--udid', target.id, '--userspace']);
+        const processes = JSON.parse(stdout).filter(process =>
+          process.bundleIdentifier === app.bundle_id || process.bundleIdentifier?.startsWith(`${app.bundle_id}.`)
+          || (app.executable !== undefined && process.name === app.executable));
+        if (!processes.length) return { bundle_id: app.bundle_id, already_stopped: true };
+        for (const process of processes) await pmd3(['developer', 'dvt', 'kill', String(process.pid), '--udid', target.id, '--userspace']);
+      }
       else {
         const result = await devicectl(target.id, ['device', 'info', 'processes']);
         const appPath = app.path.startsWith('file:') ? fileURLToPath(app.path) : app.path;
