@@ -1,0 +1,43 @@
+name: Tests
+
+on:
+  push:
+    branches: [linux-port]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y usbmuxd libplist-utils zip unzip zenity ffmpeg \
+            tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-sim tesseract-ocr-jpn
+
+      # The full setup is the CI build: host prerequisites, the pinned
+      # idevice checkout and its tools, npm dependencies, and the native
+      # bridge with the Rust OCR recognizer.
+      - name: Build
+        run: ./bin/setup
+
+      - name: Install Poki Agent dependencies
+        run: npm ci --prefix agent
+
+      # The suite is specified per file: each test file runs in its own
+      # process, matching how the port is verified locally.
+      - name: Run each test file on its own
+        run: |
+          for file in test/*.test.mjs; do
+            echo "=== $file"
+            node --test "$file"
+          done
