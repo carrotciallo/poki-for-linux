@@ -24,6 +24,13 @@
 </p>
 <!-- badges:end -->
 
+> **Linux port (unofficial fork).** This repository is a fork of
+> [JosssphZhou/poki](https://github.com/JosssphZhou/poki) that adds Linux
+> host support for physical iPhones. On a Linux host, skip the macOS and
+> Xcode steps in the quick start below and follow [LINUX.md](LINUX.md)
+> instead. Everything else — features, documentation, and the
+> AGPL-3.0-only license — is upstream's.
+
 ## Quick start
 
 **Let your agent install it.** Copy this to your agent:
