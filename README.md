@@ -2,159 +2,179 @@
   <img src="docs/images/poki-icon.png" width="72" height="72" alt="Poki icon">
 </p>
 
-<h1 align="center">Poki uses your iPhone like you do</h1>
+<h1 align="center">Poki for Linux</h1>
 
-<p align="center">
-  <img src="docs/images/poki-home.gif" width="720" alt="Poki website home page animation">
-</p>
-
-<p align="center">
-  English | <a href="README.zh-CN.md">简体中文</a> | <a href="README.zh-TW.md">繁體中文</a> | <a href="README.ja.md">日本語</a> | <a href="README.ko.md">한국어</a> | <a href="README.es.md">Español</a><br>
-  <a href="https://poki.bot">poki.bot</a>
-</p>
-
-<!-- badges:start -->
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue" alt="License: AGPL-3.0-only"></a>
-  <a href="https://github.com/JosssphZhou/poki/stargazers"><img src="https://img.shields.io/github/stars/JosssphZhou/poki" alt="GitHub stars"></a>
-  <a href="https://github.com/JosssphZhou/poki/forks"><img src="https://img.shields.io/github/forks/JosssphZhou/poki" alt="GitHub forks"></a>
-  <a href="https://github.com/JosssphZhou/poki/issues"><img src="https://img.shields.io/github/issues/JosssphZhou/poki" alt="GitHub issues"></a>
-  <a href="https://github.com/JosssphZhou/poki/releases"><img src="https://img.shields.io/github/v/release/JosssphZhou/poki" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20iOS-lightgrey" alt="Platform: macOS and iOS">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20iOS-lightgrey" alt="Platform: Linux and iOS">
 </p>
-<!-- badges:end -->
 
-> **Linux port (unofficial fork).** This repository is a fork of
-> [JosssphZhou/poki](https://github.com/JosssphZhou/poki) that adds Linux
-> host support for physical iPhones. On a Linux host, skip the macOS and
-> Xcode steps in the quick start below and follow [LINUX.md](LINUX.md)
-> instead. Everything else — features, documentation, and the
-> AGPL-3.0-only license — is upstream's.
+**Control a real iPhone from an MCP agent on a Linux host — no Mac, no
+jailbreak, no extra hardware.** Poki exposes the iPhone's accessibility
+tree and HID input (tap, swipe, type, keys) to any MCP client through a
+local server, so an agent operates the phone the way you do.
+
+> This repository is an **unofficial Linux port** of
+> [JosssphZhou/poki](https://github.com/JosssphZhou/poki). The macOS host
+> support upstream is built around — Xcode, the Vision OCR helper, the
+> simulator — is replaced or skipped here; everything device-facing is
+> upstream's design, driven through Linux tooling instead. The detailed
+> port notes live in [LINUX.md](LINUX.md). Upstream: https://poki.bot
+
+## How it works
+
+A Rust bridge (built on [idevice](https://github.com/jkcoxson/idevice))
+talks to the iPhone over USB through **usbmuxd**, opens the CoreDevice
+tunnel, and speaks RemoteXPC to the developer services — the same path
+Xcode uses, without Xcode. The DeveloperDiskImage is installed by
+**pymobiledevice3**, which downloads it and personalizes it for the
+device. The MCP server itself is plain Node.js.
+
+## Requirements
+
+- A Linux host (verified on Arch Linux, x86_64) with usbmuxd running
+- An iPhone with Developer Mode and UI Automation enabled
+  (see [Physical iPhone setup](docs/physical-iphone.md); the device
+  steps are the same as upstream)
+- Node.js 24+, Rust (via rustup), Python 3, ffmpeg, git
+- pymobiledevice3 (`pip install pymobiledevice3`, or a virtualenv —
+  point `POKI_PYMOBILEDEVICE3` at the binary if it is not on `PATH`)
+
+`./bin/setup` checks for missing prerequisites and says how to install
+each one.
 
 ## Quick start
 
-**Let your agent install it.** Copy this to your agent:
-
-```text
-Install https://github.com/JosssphZhou/poki following its root AGENTS.md, including the MCP skill, and stop whenever you need me to act.
+```sh
+git clone https://github.com/carrotciallo/poki-for-linux.git
+cd poki-for-linux
+./bin/setup
 ```
 
-**Poki MCP.** Already using Claude Code, Codex, or another MCP client? Connect Poki MCP and use your own subscription. No extra model account needed.
+`./bin/setup` builds the native bridge and the idevice tools, installs
+the npm dependencies, and verifies that sharp's prebuilt binaries are
+actually present (on some Linux npm setups they get skipped silently;
+setup repairs that).
+
+Prepare the iPhone once, connected and unlocked over USB:
+
+```sh
+node bin/prepare-device.mjs
+```
+
+This installs the DeveloperDiskImage through pymobiledevice3. If the
+image is already installed, it reports that and does nothing.
 
 Start the server and keep it running:
 
 ```sh
-git clone https://github.com/JosssphZhou/poki.git
-cd poki
-./bin/setup
 npm start
 ```
 
-Requires macOS 15 or later, full Xcode, Rust, Node.js 24+, and ffmpeg. `./bin/setup` checks for missing dependencies. The initial build takes a few minutes.
-
-### Prebuilt macOS arm64 package
-
-Download `poki-v0.1.1-macos-arm64.tar.gz` from the release and run:
-
-```sh
-tar -xzf poki-v0.1.1-macos-arm64.tar.gz
-cd poki-v0.1.1
-npm ci --no-audit --no-fund
-npm start
-```
-
-The package includes the native bridge and idevice tools. You do not need Rust or `./bin/setup`. You still need macOS on Apple Silicon, full Xcode, Node.js 24+, Python 3, and ffmpeg. Register your MCP client and install the optional Agent as described below.
-
-In another terminal, from the same directory, register the MCP server:
+Register the MCP server with your client, from the same directory:
 
 ```sh
 claude mcp add --scope user poki-mcp -- node "$PWD/src/stdio.mjs"   # Claude Code
 codex mcp add poki-mcp -- node "$PWD/src/stdio.mjs"                 # Codex
 ```
 
-**Poki Agent.** For Poki's standalone terminal agent or messaging channels, keep `npm start` running and open another terminal in the same directory. Install the agent, add its command to this terminal's path, and sign in:
-
-```sh
-npm ci --prefix agent
-export PATH="$PWD/bin:$PATH"
-poki login
-poki status
-```
-
-Poki Agent uses GPT-6.1 Terra (`gpt-6.1-terra`) with low reasoning by default. We recommend keeping it: it is the fastest setup we have tested for phone tasks. Override it with `POKI_AGENT_MODEL`; see [Run Poki Agent](agent/README.md).
-
-For a physical iPhone, pair it with your Mac over USB first. See [Physical iPhone setup](docs/physical-iphone.md).
-
-Update with `./bin/poki update`. Set `POKI_NO_UPDATE_CHECK=1` to disable the daily anonymous GitHub release check. See [Update](AGENTS.md#update) for the request URL, restart steps, and prebuilt packages.
+State lives in `$XDG_STATE_HOME/PokiMCP` (default
+`~/.local/state/PokiMCP`) unless `POKI_MCP_STATE_DIR` is set.
 
 ## Try a task
 
-With Poki Agent, one connected iPhone is selected automatically. With multiple devices, add `--device '<device UUID>'`.
-
 ```sh
 node bin/call.mjs list_devices   # Find your device UUID
-poki "Search esp32 in Chrome and summarize the top result"
+node bin/call.mjs list_elements '{"device":"<device UUID>"}'
 ```
 
-> **Note:** Poki controls your real iPhone. If you ask it to send messages or make payments, it will. Screen contents are sent to your configured model service.
+> **Note:** Poki controls your real iPhone. If you ask it to send
+> messages or make payments, it will. Screen contents are sent to your
+> configured model service. Sensitive tools ask for approval first —
+> on Linux the approval dialog uses `zenity`; without it, sensitive
+> tools raise an explicit error instead of silently proceeding.
 
-Gets faster with use: Poki Agent remembers past tasks and runs them faster on repeat.
+**Poki Agent.** The standalone terminal agent works on Linux the same
+way (`npm ci --prefix agent`, then `poki login`); see
+[Run Poki Agent](agent/README.md). The iMessage channel is the one
+exception: it needs a BlueBubbles server, which itself requires a Mac.
+Telegram works.
 
-**Channels:** After configuring an authorized channel, start it with `poki imessage` or `poki telegram`. See [Poki Agent](agent/README.md) for setup.
+**Wireless.** Remote use over Tailscale (RemotePairing) is built into
+the bridge and is platform-independent; the setup steps in
+[remote-iphone.md](docs/remote-iphone.md) apply, with this repository's
+state directory. It is not yet verified on a Linux host.
 
-**MCP clients:** Claude Code, Codex, and any client supporting `mcpServers` JSON.
+## Verified on real hardware
 
-Physical iPhone support has been verified only on iPhones using the Chinese interface. Physical devices support portrait orientation only. App container export and direct links to Settings subpages are unavailable. See [verification and known limits](docs/verification.md).
+Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22,
+pymobiledevice3 11.50. Device: iPhone18,4 running iOS 27.0.1 over USB.
+
+| Check | Result |
+| --- | --- |
+| Pairing and lockdown over usbmuxd | works |
+| DeveloperDiskImage via pymobiledevice3 | installed, including a reinstall through `bin/prepare-device.mjs` after an uninstall |
+| `list_elements` (accessibility tree) | works |
+| `take_screenshot` (lossless device capture) | works |
+| `tap`, `swipe`, `press_key` | works |
+| `type_text` (verified text input, clipboard restored afterwards) | works |
+| Approval dialog via `zenity` | works |
+| `npm test` | every test file passes on its own; see the note in [LINUX.md](LINUX.md) |
+
+## Known limitations
+
+- The OCR helper is a macOS Vision binary, so on Linux the screenshot
+  prompt check reports `unavailable`; observation relies on the
+  accessibility tree (the same fallback upstream uses when the helper
+  is missing).
+- `get_clipboard` cannot classify clipboard image types on Linux.
+- A few physical-device tools shell out to `xcrun devicectl` upstream
+  (`open_url`, `terminate_app`, crash-log access, app-container export)
+  and fail on Linux until they are ported to idevice-tools equivalents.
+- Physical devices support portrait orientation only, as upstream.
 
 ## Docs
 
 | Topic | Read |
 | --- | --- |
-| Installation, other MCP clients, and troubleshooting | [Install guide](docs/install.md) |
-| Linux host support (this fork) | [Linux port](LINUX.md) |
-| Poki Agent, models, iMessage, and Telegram | [Run Poki Agent](agent/README.md) |
+| Linux port notes (scope, differences from upstream) | [LINUX.md](LINUX.md) |
+| Installation and troubleshooting | [Install guide](docs/install.md) |
+| Poki Agent and channels | [Run Poki Agent](agent/README.md) |
 | MCP tool reference | [Tool behavior](docs/tools.md) |
 | Environment variables and sessions | [Configuration](docs/configuration.md) |
 | USB pairing, Developer Mode, and Wi-Fi | [Physical iPhone setup](docs/physical-iphone.md) |
-| Test results, known limits, and disclaimers | [Verification](docs/verification.md) |
-| Bridge architecture | [Native bridge](native/NATIVE.md) and [simulator adapter](native/simulator.md) |
-| Roadmap | [poki.bot](https://poki.bot) |
+| iPhone over Tailscale | [Remote iPhone](docs/remote-iphone.md) |
+| Test results and known limits | [Verification](docs/verification.md) |
+| Bridge architecture | [Native bridge](native/NATIVE.md) |
 
-## Roadmap
-
-<p align="center">
-  <img src="docs/images/roadmap.png" width="860" alt="Poki roadmap. Shipped: Poki MCP, Poki Agent, iMessage and Terminal integrations, self-learning routes, remote connections. In Progress: persistent connection performance improvements, Telegram integration, native text input (clipboard-free), simplified tool interface. Planned: Poki App, which runs locally on iPhone and is available while your Mac is powered off. Future: iPhone Duo support, physical device support (no Xcode required), additional model providers.">
-</p>
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=JosssphZhou%2Fpoki&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=JosssphZhou/poki&type=date&theme=dark&legend=top-left">
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=JosssphZhou/poki&type=date&legend=top-left">
-    <img alt="Star History chart" src="https://api.star-history.com/chart?repos=JosssphZhou/poki&type=date&legend=top-left">
-  </picture>
-</a>
-
-## Contributors
-
-<a href="https://github.com/JosssphZhou/poki/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=JosssphZhou/poki" alt="Contributors">
-</a>
+Some documents under `docs/` were written for the macOS host; where
+they conflict with this README or LINUX.md on host setup, the Linux
+documents win.
 
 ## Disclaimer
 
-Poki is an independent open source project. It is not affiliated with, or endorsed by, Apple, OpenAI, or the makers of any app or website it operates. iPhone is a trademark of Apple Inc.
+Poki is an independent open source project. It is not affiliated with,
+or endorsed by, Apple, OpenAI, or the makers of any app or website it
+operates. iPhone is a trademark of Apple Inc. This port is an
+unofficial fork and is not affiliated with the upstream author.
 
-Automating third-party apps and websites may violate their terms of service. Decide for yourself whether to use Poki with a given service. You are responsible for what it does on your device and accounts, including messages it sends, changes it makes, and any account restrictions that result.
+Automating third-party apps and websites may violate their terms of
+service. Decide for yourself whether to use Poki with a given service.
+You are responsible for what it does on your device and accounts,
+including messages it sends, changes it makes, and any account
+restrictions that result.
 
-Poki is provided "as is", without warranty, as set out in the AGPL-3.0 license.
+Poki is provided "as is", without warranty, as set out in the
+AGPL-3.0 license.
 
 ## License
 
 Poki is open source under the [AGPL-3.0-only license](LICENSE).
 
-Copyright (c) 2026 Joseph Zhou and contributors. Open-source dependencies retain their respective licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Copyright (c) 2026 Joseph Zhou and contributors. Open-source
+dependencies retain their respective licenses; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). To contribute, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Acknowledgments
 
