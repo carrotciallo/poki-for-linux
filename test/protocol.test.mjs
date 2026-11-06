@@ -278,8 +278,17 @@ test('bin/call.mjs says a select_device choice lasts for that run only', { timeo
 test('bin/setup says what to install for a missing prerequisite', { timeout: 20000 }, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'poki-setup-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const present = ['git', 'node', 'npm', 'cargo', 'rustc', 'python3', 'xcrun', 'xcodebuild', 'ffmpeg', 'ffprobe'];
-  for (const [missing, install] of [['xcodebuild', /full Xcode/], ['node', /Node\.js 24/], ['cargo', /rustup\.rs/], ['ffmpeg', /brew install ffmpeg/]]) {
+  // The expected guidance follows the platform's own setup flow: the macOS
+  // scenarios assert the Xcode and Homebrew wording, the Linux ones assert
+  // the distribution-agnostic wording bin/setup prints there.
+  const linux = process.platform === 'linux';
+  const present = linux
+    ? ['git', 'node', 'npm', 'cargo', 'rustc', 'python3', 'ffmpeg', 'ffprobe', 'usbmuxd']
+    : ['git', 'node', 'npm', 'cargo', 'rustc', 'python3', 'xcrun', 'xcodebuild', 'ffmpeg', 'ffprobe'];
+  const scenarios = linux
+    ? [['node', /Node\.js 24/], ['cargo', /rustup\.rs/], ['ffmpeg', /package manager/], ['python3', /Python 3/]]
+    : [['xcodebuild', /full Xcode/], ['node', /Node\.js 24/], ['cargo', /rustup\.rs/], ['ffmpeg', /brew install ffmpeg/]];
+  for (const [missing, install] of scenarios) {
     const bin = join(dir, missing);
     await mkdir(bin);
     for (const tool of ['uname', 'dirname']) await symlink(`/usr/bin/${tool}`, join(bin, tool));
