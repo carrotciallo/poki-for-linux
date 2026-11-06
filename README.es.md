@@ -94,9 +94,9 @@ Anfitrión: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3 1
 
 ## Limitaciones conocidas
 
-- El OCR corre con tesseract mediante un pequeño reconocedor en Rust dentro del bridge (instalado como `build/ocr`) y emite el mismo formato JSON que el asistente Vision de macOS; la comprobación de indicaciones en capturas y el recurso cuando la accesibilidad no encuentra el texto funcionan. La calidad de reconocimiento es la de tesseract: el texto de interfaz nítido se lee bien; el texto pequeño o estilizado puede escaparse. Los idiomas por defecto son chino simplificado, inglés y japonés, ajustables con `POKI_OCR_LANGS`.
+- El OCR corre con tesseract mediante un pequeño reconocedor en Rust dentro del bridge (instalado como `build/ocr`) y emite el mismo formato JSON que el asistente Vision de macOS; la comprobación de indicaciones en capturas y el recurso cuando la accesibilidad no encuentra el texto funcionan. La calidad de reconocimiento es la de tesseract: el texto de interfaz nítido se lee bien; el texto pequeño o estilizado puede escaparse. Los idiomas por defecto son chino simplificado, inglés y japonés, ajustables con `POKI_OCR_LANGS`; el modo de segmentación de página por defecto es 11 (`POKI_OCR_PSM`).
 - `get_clipboard` no puede clasificar los tipos de imagen del portapapeles en Linux.
-- Algunas herramientas de dispositivo físico llaman a `xcrun devicectl` en el proyecto original (`open_url`, `terminate_app`, acceso a registros de fallos, exportación de contenedores de apps) y fallan en Linux hasta que se adapten a equivalentes de idevice-tools.
+- `terminate_app`, el acceso a registros de fallos y la exportación de contenedores de apps pasan por pymobiledevice3 en Linux. `open_url` sigue llamando a `xcrun devicectl` en el proyecto original y falla en Linux; ni pymobiledevice3 ni idevice-tools ofrecen un equivalente para abrir URL.
 - Como en el proyecto original, los dispositivos físicos solo admiten orientación vertical.
 
 ## Documentación

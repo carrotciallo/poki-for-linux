@@ -34,7 +34,10 @@ Not supported on Linux:
 - Node.js 24 or newer, the Rust toolchain, FFmpeg, git, python3
 - [pymobiledevice3](https://github.com/doronz88/pymobiledevice3)
   (`pip install pymobiledevice3`) for the one-time DeveloperDiskImage
-  installation — Linux has no Xcode to take the image from
+  installation — Linux has no Xcode to take the image from — and, at
+  runtime, for the device services behind `terminate_app`, crash-log
+  access and app-container export, which macOS reaches through
+  `xcrun devicectl`
 - Optional: `zenity`, used for the human-approval dialogs of sensitive
   tools
 
@@ -71,6 +74,76 @@ Run the daemon the same way as on macOS (`npm start`, or
 `$XDG_STATE_HOME/PokiMCP` (default `~/.local/state/PokiMCP`) unless
 `POKI_MCP_STATE_DIR` is set.
 
+## Running the daemon as a user service
+
+On a host that should keep Poki available, run the daemon under
+systemd's user manager instead of a terminal. Save as
+`~/.config/systemd/user/poki-mcp.service`:
+
+```ini
+[Unit]
+Description=Poki MCP daemon
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/poki-for-linux
+ExecStart=/usr/bin/node /path/to/poki-for-linux/src/daemon.mjs
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+Then:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable --now poki-mcp.service
+loginctl enable-linger "$USER"   # keep it running without an open session
+```
+
+If Node.js lives somewhere else (a version manager, a private
+prefix), point `ExecStart` at that binary. Set `POKI_MCP_STATE_DIR`
+with an `Environment=` line in the unit when the state directory
+should differ from the default — and pass the same value to every
+client, as described next.
+
+## Connecting an MCP client
+
+The daemon serves HTTP on a random loopback port with a random
+bearer token, and rewrites both on every start in `mcp.json` inside
+the state directory. **Never copy that URL or token into a client
+configuration** — it is stale the moment the daemon restarts.
+Clients connect through the stdio bridge in this repository,
+`src/stdio.mjs`, which reads the current endpoint file on startup
+and re-reads it when the daemon rejects a stale endpoint (401) or
+is unreachable, so a daemon restart needs no client-side change.
+
+Claude Code:
+
+```sh
+claude mcp add --scope user poki-mcp -- node /path/to/poki-for-linux/src/stdio.mjs
+```
+
+Pi (an entry in `~/.pi/agent/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "poki": {
+      "command": "node",
+      "args": ["/path/to/poki-for-linux/src/stdio.mjs"],
+      "cwd": "/path/to/poki-for-linux"
+    }
+  }
+}
+```
+
+With a non-default state directory, give the bridge the same
+`POKI_MCP_STATE_DIR` the daemon runs with: the `--env` flag for
+`claude mcp add`, or an `env` object next to `args` for Pi.
+
 ## Verified on real hardware
 
 Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
@@ -91,7 +164,7 @@ Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
 
 Test-suite note: the full suite also needs the agent dependencies
 (`npm ci --prefix agent`), which the update tests exercise through the
-CLI. Every test file passes on the reference host (133 tests in
+CLI. Every test file passes on the reference host (136 tests in
 total). An earlier revision of this note blamed 9 failing
 coordination tests on timing; they were in fact two porting gaps —
 the app-management paths called the macOS-only `plutil` and `ditto`,
@@ -105,9 +178,27 @@ and the test fixture did not stub `zenity` — both fixed since.
   ordering upstream uses).
 - `get_clipboard` cannot classify clipboard image types on Linux; that
   check uses the macOS simulator helper upstream.
-- A few physical-device tools shell out to `xcrun devicectl` upstream
-  (`open_url`, `terminate_app`, crash-log access, app-container export)
-  and fail on Linux until they are ported to idevice-tools equivalents.
+- `open_url` has no Linux implementation on any transport: upstream
+  it calls `xcrun devicectl`, and neither pymobiledevice3 (lockdown,
+  DVT and CoreDevice command groups) nor the idevice tools expose an
+  open-URL service.
+- RemotePairing carries only the bridge-backed tools. For a remote
+  target, poki's transport gate rejects the platform tools —
+  `terminate_app`, `open_url`, `get_clipboard`, crash-log access,
+  app-container export, install/uninstall, settings, location —
+  before any host tool runs, on every host OS. The pymobiledevice3
+  paths in this port therefore cover USB connections; over
+  RemotePairing those tools stay unavailable, even though
+  pymobiledevice3 could reach several of the same services over a
+  tunnel of its own (it would need its own RemotePairing pairing
+  record next to poki's, which this port does not set up). Clipboard
+  writes are not affected: the bridge sets and restores the
+  pasteboard inside its own input path; only the standalone
+  `get_clipboard` read is gated.
+- Crash-report listings on Linux come from pymobiledevice3, which
+  reports paths only: entries carry no modification time or size,
+  and ordering falls back to the report names, which embed their
+  timestamps.
 - Human approval for sensitive tools uses a `zenity` question dialog.
   Without zenity the tools raise an explicit error instead of silently
   proceeding; `POKI_MCP_APPROVAL_MODE=allow` remains available for hosts
@@ -143,8 +234,26 @@ and the test fixture did not stub `zenity` — both fixed since.
   work uses `plistutil` and zip/unzip on Linux in place of the
   macOS-only `plutil` and `ditto` (the macOS tools are unchanged);
   `execute()` passes a working directory through for the zip call
+- `src/platform.mjs`: the physical-device paths upstream drives
+  through `xcrun devicectl` — process termination, crash-report
+  listing and download, app-container export — use pymobiledevice3
+  on Linux instead (DVT process control; the crash-report and
+  app-container AFC services), located through
+  `POKI_PYMOBILEDEVICE3` as in `bin/prepare-device.mjs`; the macOS
+  calls are unchanged, and `open_url` has no equivalent and stays
+  on devicectl
+- `src/remote.mjs` and `src/daemon.mjs`: the daemon warms each
+  configured RemotePairing helper at startup with a `device_info`
+  request, so the first device call no longer pays for helper start
+  and session setup inline (previously that cost landed inside the
+  first call and could outlast a client's request timeout)
 - `test/fixture.mjs`: the fixture stubs `zenity` alongside `osascript`,
-  so the approval-dialog flow is exercised on the Linux branch too
+  so the approval-dialog flow is exercised on the Linux branch too;
+  it also stubs `pymobiledevice3`, so the coordination suite covers
+  the Linux device-service paths above
+- `.github/workflows/tests.yml` (new): CI on Ubuntu — the full
+  `./bin/setup`, the agent dependencies, then each test file in its
+  own process
 
 Everything else is unmodified upstream code. Issues that reproduce on
 macOS belong upstream; Linux-specific issues belong here.

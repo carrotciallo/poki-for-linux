@@ -138,11 +138,12 @@ pymobiledevice3 11.50. Device: iPhone18,4 running iOS 27.0.1 over USB.
   accessibility-miss fallback work. Recognition quality is
   tesseract's — clear UI text reads well, small or stylized text may
   be missed. Languages default to Simplified Chinese, English and
-  Japanese (`POKI_OCR_LANGS`).
+  Japanese (`POKI_OCR_LANGS`); the page-segmentation mode defaults to 11 (`POKI_OCR_PSM`).
 - `get_clipboard` cannot classify clipboard image types on Linux.
-- A few physical-device tools shell out to `xcrun devicectl` upstream
-  (`open_url`, `terminate_app`, crash-log access, app-container export)
-  and fail on Linux until they are ported to idevice-tools equivalents.
+- `terminate_app`, crash-log access and app-container export run
+  through pymobiledevice3 on Linux. `open_url` still calls
+  `xcrun devicectl` upstream and fails on Linux; neither
+  pymobiledevice3 nor the idevice tools expose an open-URL equivalent.
 - Physical devices support portrait orientation only, as upstream.
 
 ## Docs

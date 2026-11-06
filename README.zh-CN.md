@@ -94,9 +94,9 @@ node bin/call.mjs list_elements '{"device":"<device UUID>"}'
 
 ## 已知限制
 
-- OCR 由 tesseract 通过 bridge 中的一个小型 Rust 识别器承担（安装为 `build/ocr`），输出与 macOS Vision 辅助程序相同的 JSON 契约；截图提示检查与无障碍缺失时的回退都可工作。识别质量取决于 tesseract：清晰的界面文字读得准，小字或艺术字可能漏读。默认语言为简体中文、英文与日文，可用 `POKI_OCR_LANGS` 调整。
+- OCR 由 tesseract 通过 bridge 中的一个小型 Rust 识别器承担（安装为 `build/ocr`），输出与 macOS Vision 辅助程序相同的 JSON 契约；截图提示检查与无障碍缺失时的回退都可工作。识别质量取决于 tesseract：清晰的界面文字读得准，小字或艺术字可能漏读。默认语言为简体中文、英文与日文，可用 `POKI_OCR_LANGS` 调整；页面分割模式默认为 11，可用 `POKI_OCR_PSM` 调整。
 - `get_clipboard` 在 Linux 上无法对剪贴板图片分类。
-- 少数物理设备工具在上游是调用 `xcrun devicectl` 的（`open_url`、`terminate_app`、崩溃日志访问、应用容器导出），在移植到 idevice-tools 等价实现之前，它们在 Linux 上会失败。
+- `terminate_app`、崩溃日志访问与应用容器导出在 Linux 上已改走 pymobiledevice3。`open_url` 在上游仍调用 `xcrun devicectl`，在 Linux 上仍会失败——pymobiledevice3 与 idevice-tools 都没有打开 URL 的等价能力。
 - 与上游相同，物理设备仅支持竖屏方向。
 
 ## 文档
