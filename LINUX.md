@@ -218,12 +218,12 @@ and the test fixture did not stub `zenity` — both fixed since.
   house-arrest service, which only vends containers of
   development-signed apps; the device refuses App Store apps
   (`InstallationLookupFailed`), the same restriction devicectl
-  container copies have on macOS. On current iOS versions the
-  export also fails for development-signed apps: the pull walks
-  the container root, whose container-manager metadata file is
-  protected (`PERM_DENIED`), and aborts there, even though the
-  container's directories pull fine one by one. Pulling the
-  entries individually instead of the root is the pending fix.
+  container copies have on macOS. The export pulls the container's
+  `Documents`, `Library` and `tmp` directories one by one: the
+  container-manager metadata file at the container root is
+  protected (`PERM_DENIED`), so pulling the root itself always
+  aborts. `SystemData` is system-managed and the service denies
+  reading it, so it is not part of the export.
 - Human approval for sensitive tools uses a `zenity` question dialog.
   Without zenity the tools raise an explicit error instead of silently
   proceeding; `POKI_MCP_APPROVAL_MODE=allow` remains available for hosts
