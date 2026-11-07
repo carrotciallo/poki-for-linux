@@ -109,6 +109,18 @@ with an `Environment=` line in the unit when the state directory
 should differ from the default — and pass the same value to every
 client, as described next.
 
+The Linux device-service paths (`terminate_app`, crash reports,
+app-container export) shell out to `pymobiledevice3`. When it is
+installed in a virtualenv it is not on the service's `PATH`, and
+those tools fail with `spawn pymobiledevice3 ENOENT`. Point the
+service at the binary with a drop-in
+(`~/.config/systemd/user/poki-mcp.service.d/pymobiledevice3.conf`):
+
+```ini
+[Service]
+Environment=POKI_PYMOBILEDEVICE3=/path/to/venv/bin/pymobiledevice3
+```
+
 ## Connecting an MCP client
 
 The daemon serves HTTP on a random loopback port with a random
@@ -159,6 +171,9 @@ Host: Arch Linux (x86_64), usbmuxd 1.1.1, Node.js 24.22, pymobiledevice3
 | Approval dialog via `zenity` (dialog timeout leaves the action unapproved) | works |
 | Wireless control over the LAN (RemotePairing to the iPhone's LAN address; live TCP tunnel, tree and screenshot over Wi-Fi) | works |
 | `type_text`, `swipe`, `press_key` on the real device | works |
+| `terminate_app`, `list_crashes`, `get_crash` over USB (pymobiledevice3 paths) | works, including the `already_stopped` result for an app that is not running |
+| `install_app` / `uninstall_app` over USB with a locally signed (free provisioning) package | works; the installed app launches once the user trusts the developer certificate under Settings → General → VPN & Device Management |
+| First device call after a daemon restart (RemotePairing target, startup warm-up) | works; a screenshot returns in seconds instead of paying session setup inline |
 | Screenshot prompt check through OCR (tesseract recognizer as `build/ocr`; reports `checked`, and flows that force an OCR read such as `hide_keyboard` work) | works |
 | `npm test` | every test file passes on its own; see the note below |
 
@@ -199,6 +214,16 @@ and the test fixture did not stub `zenity` — both fixed since.
   reports paths only: entries carry no modification time or size,
   and ordering falls back to the report names, which embed their
   timestamps.
+- `download_app_container` reads the data container through the
+  house-arrest service, which only vends containers of
+  development-signed apps; the device refuses App Store apps
+  (`InstallationLookupFailed`), the same restriction devicectl
+  container copies have on macOS. On current iOS versions the
+  export also fails for development-signed apps: the pull walks
+  the container root, whose container-manager metadata file is
+  protected (`PERM_DENIED`), and aborts there, even though the
+  container's directories pull fine one by one. Pulling the
+  entries individually instead of the root is the pending fix.
 - Human approval for sensitive tools uses a `zenity` question dialog.
   Without zenity the tools raise an explicit error instead of silently
   proceeding; `POKI_MCP_APPROVAL_MODE=allow` remains available for hosts
