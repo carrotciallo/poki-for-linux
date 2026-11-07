@@ -381,6 +381,16 @@ test('unknown container eligibility is decided by the copy service rather than r
 });
 
 
+test('container export pulls each container directory instead of the protected root',async t=>{
+ const f=await fixture(t,{approvalMode:'allow'});
+ const downloaded=await f.call('download_app_container',{bundle_id:'local.fixture',destination:f.dir+'/exports'});
+ assert.notEqual(downloaded.isError,true,downloaded.content[0].text);
+ const exported=value(downloaded);
+ assert.equal(await readFile(exported.path+'/AppData/Library/check.txt','utf8'),'fixture container contents');
+ assert.equal(await readFile(exported.path+'/AppData/tmp/check.txt','utf8'),'fixture container contents');
+});
+
+
 test('paired install and uninstall verify inventory, and uncertain installation stops permissive batches', async t => {
  const f=await fixture(t,{approvalMode:'allow'});await f.set({coreDeviceUnavailable:true});
  const app=f.dir+'/InstallFixture.app';await mkdir(app);await writeFile(app+'/Info.plist','<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>local.installfixture</string></dict></plist>');

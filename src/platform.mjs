@@ -674,7 +674,16 @@ async function downloadContainer(target, args) {
   if (target.kind === 'simulator') {
     const source = await simctl(['get_app_container', target.id, app.bundle_id, 'data']);
     await cp(source, data, { recursive: true, errorOnExist: true, force: false, dereference: false });
-  } else if (isLinux) await pmd3(['apps', 'pull', app.bundle_id, '/', data, '--udid', target.id], 180000);
+  } else if (isLinux) {
+    // House arrest refuses to stat the container-manager metadata file at
+    // the container root, so pulling '/' always fails; pull the container's
+    // directories one by one instead. SystemData is system-managed and the
+    // service denies reading it, so it stays out of the export.
+    for (const entry of ['Documents', 'Library', 'tmp']) {
+      try { await pmd3(['apps', 'pull', app.bundle_id, entry, data, '--udid', target.id], 180000); }
+      catch (error) { if (!/OBJECT_NOT_FOUND/.test(error?.message ?? '')) throw error; }
+    }
+  }
   else await devicectl(target.id, ['device', 'copy', 'from', '--domain-type', 'appDataContainer', '--domain-identifier', app.bundle_id, '--source', '.', '--destination', data], 180000);
   const plist = { ApplicationBundleIdentifier: app.bundle_id, ApplicationName: app.name, ContainerType: 'AppData' };
   await writeFile(join(packagePath, 'AppDataInfo.plist'), await plistXml(plist), { mode: 0o600, flag: 'wx' });
